@@ -22,49 +22,38 @@ SUPPORTED_TAGS = {
     "h4",
     "h5",
     "h6",
-
     "p",
-
     "a",
-
     "b",
     "strong",
-
     "i",
     "em",
-
     "u",
     "ins",
-
     "s",
     "strike",
     "del",
-
     "code",
     "pre",
-
     "blockquote",
-
     "ul",
     "ol",
     "li",
-
     "br",
-
     "hr",
-
     "img",
-
     "figure",
     "figcaption",
 
-    "details",
-    "summary",
-
     "tg-collapse",
-
+    "tg-collage",
+    "tg-slideshow",
+    "tg-document",
+    "tg-spoiler",
     "tg-button",
     "tg-button-row",
+    "tg-emoji",
+    "tg-reference",
 }
 
 
@@ -359,7 +348,8 @@ def _remove_unsupported_tags(
     soup,
 ):
     """
-    Remove unsupported HTML tags.
+    Remove unsupported HTML tags while preserving
+    Telegram RichMessage tg-* custom tags.
     """
 
     dangerous_tags = {
@@ -380,7 +370,12 @@ def _remove_unsupported_tags(
         ):
             continue
 
+        # Keep known supported tags
         if tag.name in SUPPORTED_TAGS:
+            continue
+
+        # Preserve Telegram RichMessage tags
+        if tag.name.startswith("tg-"):
             continue
 
         if tag.name in dangerous_tags:
@@ -453,95 +448,64 @@ def _strip_attributes(
     soup,
 ):
     """
-    Keep only RichMessage-supported
-    attributes.
+    Keep supported attributes while preserving
+    Telegram RichMessage custom tags.
     """
 
     for tag in soup.find_all(True):
 
         if tag.name == "a":
 
-            href = tag.get(
-                "href"
-            )
+            href = tag.get("href")
 
             tag.attrs = {}
 
             if href:
-
                 tag["href"] = href
 
         elif tag.name == "img":
 
-            src = tag.get(
-                "src"
-            )
+            src = tag.get("src")
 
             tag.attrs = {}
 
             if src:
-
                 tag["src"] = src
-
-        elif tag.name == "ol":
-
-            start = tag.get(
-                "start"
-            )
-
-            tag.attrs = {}
-
-            if start:
-
-                tag["start"] = start
 
         elif tag.name == "tg-button":
 
-            button_type = tag.get(
-                "type"
-            )
-
-            style = tag.get(
-                "style"
-            )
-
-            url = tag.get(
-                "url"
-            )
-
-            data = tag.get(
-                "data"
-            )
+            button_type = tag.get("type")
+            style = tag.get("style")
+            url = tag.get("url")
+            data = tag.get("data")
 
             tag.attrs = {}
 
             if button_type:
-
                 tag["type"] = button_type
 
             if style:
-
                 tag["style"] = style
 
             if url:
-
                 tag["url"] = url
 
             if data:
-
                 tag["data"] = data
 
         elif tag.name == "tg-button-row":
 
-            align = tag.get(
-                "align"
-            )
+            align = tag.get("align")
 
             tag.attrs = {}
 
             if align:
-
                 tag["align"] = align
+
+        # Preserve Telegram custom tags.
+        elif tag.name.startswith("tg-"):
+
+            continue
 
         else:
 
