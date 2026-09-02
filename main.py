@@ -14,6 +14,7 @@ from app.telegram import (
 )
 
 from app.commands import (
+    handle_start,
     handle_preview,
     handle_callback,
 )
@@ -72,6 +73,14 @@ def webhook():
                 ""
             )
         )
+
+        if text.startswith(
+            "/start"
+        ):
+            
+            handle_start(
+                message
+            )
 
         if text.startswith(
             "/preview"
