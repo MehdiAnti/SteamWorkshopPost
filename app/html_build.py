@@ -100,9 +100,6 @@ def _convert_bbcode(
     """
     Convert common Steam Workshop BBCode
     into intermediate HTML.
-
-    The Steam description is escaped first,
-    then supported BBCode is converted.
     """
 
     if not text:
@@ -113,9 +110,9 @@ def _convert_bbcode(
         text
     )
 
-    # ---------------------------------
+    # -----------------------------
     # Headings
-    # ---------------------------------
+    # -----------------------------
 
     for level in range(1, 7):
 
@@ -133,9 +130,9 @@ def _convert_bbcode(
             ),
         )
 
-    # ---------------------------------
+    # -----------------------------
     # Basic formatting
-    # ---------------------------------
+    # -----------------------------
 
     replacements = {
         "b": "b",
@@ -163,11 +160,9 @@ def _convert_bbcode(
             ),
         )
 
-    # ---------------------------------
-    # URL with label
-    #
-    # [url=https://example.com]Text[/url]
-    # ---------------------------------
+    # -----------------------------
+    # URL with text
+    # -----------------------------
 
     text = re.sub(
         r"\[url=([^\]]+)\](.*?)\[/url\]",
@@ -183,11 +178,9 @@ def _convert_bbcode(
         ),
     )
 
-    # ---------------------------------
+    # -----------------------------
     # Plain URL
-    #
-    # [url]https://example.com[/url]
-    # ---------------------------------
+    # -----------------------------
 
     text = re.sub(
         r"\[url\](.*?)\[/url\]",
@@ -203,11 +196,9 @@ def _convert_bbcode(
         ),
     )
 
-    # ---------------------------------
+    # -----------------------------
     # Images
-    #
-    # [img]https://example.com/image.jpg[/img]
-    # ---------------------------------
+    # -----------------------------
 
     text = re.sub(
         r"\[img\](.*?)\[/img\]",
@@ -219,9 +210,9 @@ def _convert_bbcode(
         ),
     )
 
-    # ---------------------------------
+    # -----------------------------
     # Quotes
-    # ---------------------------------
+    # -----------------------------
 
     text = re.sub(
         r"\[quote\](.*?)\[/quote\]",
@@ -237,9 +228,9 @@ def _convert_bbcode(
         ),
     )
 
-    # ---------------------------------
+    # -----------------------------
     # Lists
-    # ---------------------------------
+    # -----------------------------
 
     text = re.sub(
         r"\[list\](.*?)\[/list\]",
@@ -265,21 +256,60 @@ def _convert_bbcode(
         ),
     )
 
-    # ---------------------------------
-    # Newlines
-    # ---------------------------------
-
-    text = text.replace(
-        "\r\n",
-        "\n",
-    )
-
-    text = text.replace(
-        "\r",
-        "\n",
-    )
-
     return text
+
+
+def _replace_linked_images(
+    soup,
+):
+    """
+    Telegram RichMessage does not support
+    clickable images.
+
+    Convert:
+
+        <a href="URL">
+            <img src="IMAGE"/>
+        </a>
+
+    Into:
+
+        <a href="URL">URL</a>
+    """
+
+    for link in soup.find_all(
+        "a"
+    ):
+
+        image = link.find(
+            "img"
+        )
+
+        if not image:
+            continue
+
+        href = (
+            link.get("href")
+            or ""
+        ).strip()
+
+        if not href:
+
+            link.unwrap()
+            continue
+
+        replacement = soup.new_tag(
+            "a"
+        )
+
+        replacement["href"] = href
+        replacement.string = href
+
+        link.replace_with(
+            replacement
+        )
+
+    return soup
 
 
 def _remove_empty_tags(
@@ -315,14 +345,9 @@ def _remove_empty_tags(
                 tag.find("img")
             )
 
-            has_button = bool(
-                tag.find("tg-button")
-            )
-
             if (
                 not has_text
                 and not has_media
-                and not has_button
             ):
 
                 tag.decompose()
@@ -369,33 +394,6 @@ def _remove_unsupported_tags(
     return soup
 
 
-def _remove_clickable_image_wrappers(
-    soup,
-):
-    """
-    Telegram RichMessage images are not
-    used as clickable image links.
-
-    If an <img> is wrapped inside <a>,
-    unwrap the link and preserve the image.
-    """
-
-    for image in soup.find_all(
-        "img"
-    ):
-
-        parent = image.parent
-
-        if (
-            parent
-            and parent.name == "a"
-        ):
-
-            parent.unwrap()
-
-    return soup
-
-
 def _cleanup_links(
     soup,
 ):
@@ -423,13 +421,7 @@ def _cleanup_links(
 
         if not text:
 
-            if link.find("img"):
-
-                link.unwrap()
-
-            else:
-
-                link.decompose()
+            link.decompose()
 
     return soup
 
@@ -467,10 +459,6 @@ def _strip_attributes(
 
     for tag in soup.find_all(True):
 
-        # -----------------------------
-        # Links
-        # -----------------------------
-
         if tag.name == "a":
 
             href = tag.get(
@@ -482,10 +470,6 @@ def _strip_attributes(
             if href:
 
                 tag["href"] = href
-
-        # -----------------------------
-        # Images
-        # -----------------------------
 
         elif tag.name == "img":
 
@@ -499,10 +483,6 @@ def _strip_attributes(
 
                 tag["src"] = src
 
-        # -----------------------------
-        # Ordered list
-        # -----------------------------
-
         elif tag.name == "ol":
 
             start = tag.get(
@@ -514,10 +494,6 @@ def _strip_attributes(
             if start:
 
                 tag["start"] = start
-
-        # -----------------------------
-        # Telegram button
-        # -----------------------------
 
         elif tag.name == "tg-button":
 
@@ -541,9 +517,7 @@ def _strip_attributes(
 
             if button_type:
 
-                tag["type"] = (
-                    button_type
-                )
+                tag["type"] = button_type
 
             if style:
 
@@ -557,10 +531,6 @@ def _strip_attributes(
 
                 tag["data"] = data
 
-        # -----------------------------
-        # Telegram button row
-        # -----------------------------
-
         elif tag.name == "tg-button-row":
 
             align = tag.get(
@@ -573,10 +543,6 @@ def _strip_attributes(
 
                 tag["align"] = align
 
-        # -----------------------------
-        # Everything else
-        # -----------------------------
-
         else:
 
             tag.attrs = {}
@@ -588,8 +554,7 @@ def _convert_line_breaks(
     soup,
 ):
     """
-    Convert plain text newline sequences
-    into <br> elements where appropriate.
+    Convert plain newlines into <br>.
     """
 
     for text_node in list(
@@ -632,9 +597,7 @@ def _convert_line_breaks(
             if index < len(parts) - 1:
 
                 replacement.append(
-                    soup.new_tag(
-                        "br"
-                    )
+                    soup.new_tag("br")
                 )
 
         if replacement:
@@ -665,11 +628,14 @@ def clean_description(
         "html.parser",
     )
 
-    soup = _remove_unsupported_tags(
+    # Important:
+    # Convert clickable images BEFORE
+    # cleaning attributes/tags.
+    soup = _replace_linked_images(
         soup
     )
 
-    soup = _remove_clickable_image_wrappers(
+    soup = _remove_unsupported_tags(
         soup
     )
 
@@ -712,7 +678,7 @@ def _create_button(
     style="primary",
 ):
     """
-    Create a URL RichMessage button.
+    Create Telegram RichMessage URL button.
     """
 
     safe_text = _escape_text(
@@ -775,7 +741,7 @@ def _build_tags(
     item,
 ):
     """
-    Build Workshop tag list.
+    Build Workshop tags.
     """
 
     tags = item.get(
@@ -811,11 +777,101 @@ def _build_tags(
     )
 
 
+def _build_header(
+    item,
+):
+    """
+    Build the Workshop post header.
+
+    Layout:
+
+        Preview image
+        Title
+        Tags
+    """
+
+    title = _escape_text(
+        item.get(
+            "title",
+            "Steam Workshop Item",
+        )
+    )
+
+    preview_url = (
+        item.get(
+            "preview_url",
+            ""
+        )
+        or ""
+    ).strip()
+
+    parts = []
+
+    # Preview image always first.
+    if preview_url:
+
+        parts.append(
+            "<figure>"
+            f'<img src="{_escape_attribute(preview_url)}"/>'
+            "</figure>"
+        )
+
+    # Title.
+    parts.append(
+        f"<h1>{title}</h1>"
+    )
+
+    # Tags.
+    tags_html = _build_tags(
+        item
+    )
+
+    if tags_html:
+
+        parts.append(
+            tags_html
+        )
+
+    return "".join(
+        parts
+    )
+
+
+def _build_description(
+    item,
+):
+    """
+    Put Steam description into
+    tg-collapse.
+    """
+
+    description = item.get(
+        "description",
+        ""
+    )
+
+    content = clean_description(
+        description
+    )
+
+    if not content:
+
+        return ""
+
+    return (
+        "<tg-collapse>"
+        "<summary>Description</summary>"
+        f"{content}"
+        "</tg-collapse>"
+    )
+
+
 def _build_statistics(
     item,
 ):
     """
-    Build Workshop statistics block.
+    Put Workshop statistics into
+    tg-collapse.
     """
 
     subscriptions = int(
@@ -843,7 +899,7 @@ def _build_statistics(
     )
 
     return (
-        "<details>"
+        "<tg-collapse>"
         "<summary>Workshop Statistics</summary>"
 
         "<ul>"
@@ -865,116 +921,6 @@ def _build_statistics(
 
         "</ul>"
 
-        "</details>"
-    )
-
-
-def _build_header(
-    item,
-):
-    """
-    Build Workshop post header.
-
-    preview_url is always the top media.
-    """
-
-    title = _escape_text(
-        item.get(
-            "title",
-            "Steam Workshop Item",
-        )
-    )
-
-    preview_url = (
-        item.get(
-            "preview_url",
-            ""
-        )
-        or ""
-    ).strip()
-
-    workshop_id = (
-        item.get(
-            "publishedfileid",
-            ""
-        )
-        or ""
-    )
-
-    workshop_url = get_workshop_url(
-        workshop_id
-    )
-
-    parts = []
-
-    # Main Workshop button first.
-    parts.append(
-        _create_button(
-            "Open Steam Workshop",
-            workshop_url,
-            style="primary",
-        )
-    )
-
-    # Preview image directly below.
-    if preview_url:
-
-        parts.append(
-            "<figure>"
-            f'<img src="{_escape_attribute(preview_url)}"/>'
-            "</figure>"
-        )
-
-    # Title.
-    parts.append(
-        f"<h1>{title}</h1>"
-    )
-
-    # Tags.
-    tags_html = _build_tags(
-        item
-    )
-
-    if tags_html:
-
-        parts.append(
-            tags_html
-        )
-
-    parts.append(
-        "<hr/>"
-    )
-
-    return "".join(
-        parts
-    )
-
-
-def _build_description(
-    item,
-):
-    """
-    Put the Steam description inside
-    a Telegram collapse block.
-    """
-
-    description = item.get(
-        "description",
-        ""
-    )
-
-    content = clean_description(
-        description
-    )
-
-    if not content:
-
-        return ""
-
-    return (
-        "<tg-collapse>"
-        "<summary>Description</summary>"
-        f"{content}"
         "</tg-collapse>"
     )
 
@@ -986,8 +932,20 @@ def build_workshop_post(
     """
     Build complete Telegram RichMessage HTML.
 
-    preview=True adds admin-only
-    Publish / Cancel controls.
+    Final layout:
+
+        Preview image
+        Title
+        Tags
+
+        Description (tg-collapse)
+
+        Workshop Statistics (tg-collapse)
+
+        View Steam Workshop button
+
+        Publish / Cancel
+        (preview only)
     """
 
     workshop_id = (
@@ -998,13 +956,25 @@ def build_workshop_post(
         or ""
     )
 
+    workshop_url = get_workshop_url(
+        workshop_id
+    )
+
     parts = []
+
+    # -----------------------------
+    # Header
+    # -----------------------------
 
     parts.append(
         _build_header(
             item
         )
     )
+
+    # -----------------------------
+    # Description
+    # -----------------------------
 
     description_html = (
         _build_description(
@@ -1015,8 +985,16 @@ def build_workshop_post(
     if description_html:
 
         parts.append(
+            "<hr/>"
+        )
+
+        parts.append(
             description_html
         )
+
+    # -----------------------------
+    # Statistics
+    # -----------------------------
 
     parts.append(
         "<hr/>"
@@ -1028,23 +1006,28 @@ def build_workshop_post(
         )
     )
 
+    # -----------------------------
+    # Workshop button
+    #
+    # Always at bottom.
+    # -----------------------------
+
     parts.append(
         "<hr/>"
     )
 
-    workshop_url = get_workshop_url(
-        workshop_id
-    )
-
     parts.append(
         _create_button(
-            "Open Steam Workshop",
+            "View Steam Workshop",
             workshop_url,
             style="primary",
         )
     )
 
-    # Preview-only controls.
+    # -----------------------------
+    # Admin preview controls
+    # -----------------------------
+
     if preview:
 
         parts.append(
@@ -1071,10 +1054,13 @@ def build_workshop_post(
             f"{MAX_RICH_HTML_LENGTH} characters"
         )
 
-        final_html = (
-            final_html[
-                :MAX_RICH_HTML_LENGTH
-            ]
-        )
+        final_html = final_html[
+            :MAX_RICH_HTML_LENGTH
+        ]
+
+    print(
+        "Workshop HTML built | "
+        f"Length={len(final_html)}"
+    )
 
     return final_html
