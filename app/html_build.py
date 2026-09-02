@@ -1,5 +1,9 @@
 import html
 import re
+from urllib.parse import (
+    parse_qs,
+    urlsplit,
+)
 
 from bs4 import (
     BeautifulSoup,
@@ -45,7 +49,9 @@ SUPPORTED_TAGS = {
     "figure",
     "figcaption",
 
-    "tg-collapse",
+    "details",
+    "summary",
+
     "tg-collage",
     "tg-slideshow",
     "tg-document",
@@ -81,6 +87,80 @@ def _escape_attribute(
         str(value or ""),
         quote=True,
     )
+
+
+def _fix_url(
+    url,
+):
+    """
+    Convert Steam Workshop linkfilter URLs
+    into their real destination URLs.
+    """
+
+    if not url:
+
+        return ""
+
+    url = html.unescape(
+        str(url)
+    ).strip()
+
+    # Fix malformed Steam linkfilter URLs.
+    url = url.replace(
+        "https://steamcommunity.com:/linkfilter/",
+        "https://steamcommunity.com/linkfilter/",
+    )
+
+    url = url.replace(
+        "http://steamcommunity.com:/linkfilter/",
+        "http://steamcommunity.com/linkfilter/",
+    )
+
+    # Normal Steam linkfilter:
+    #
+    # https://steamcommunity.com/linkfilter/?url=https://example.com
+    #
+    if "/linkfilter/" in url:
+
+        try:
+
+            parsed = urlsplit(
+                url
+            )
+
+            query = parse_qs(
+                parsed.query
+            )
+
+            target = query.get(
+                "url"
+            )
+
+            if target:
+
+                return html.unescape(
+                    target[0]
+                ).strip()
+
+        except Exception:
+
+            pass
+
+        # Fallback for malformed/unusual
+        # Steam linkfilter URLs.
+        match = re.search(
+            r"/linkfilter/\?url=(.+)$",
+            url,
+            flags=re.IGNORECASE,
+        )
+
+        if match:
+
+            return html.unescape(
+                match.group(1)
+            ).strip()
+
+    return url
 
 
 def _convert_bbcode(
@@ -153,13 +233,26 @@ def _convert_bbcode(
     # URL with text
     # -----------------------------
 
+    def replace_url_with_text(
+        match,
+    ):
+        url = _fix_url(
+            match.group(1)
+        )
+
+        content = match.group(2)
+
+        return (
+            '<a href="'
+            f'{_escape_attribute(url)}'
+            '">'
+            f"{content}"
+            "</a>"
+        )
+
     text = re.sub(
         r"\[url=([^\]]+)\](.*?)\[/url\]",
-        (
-            r'<a href="\1">'
-            r"\2"
-            r"</a>"
-        ),
+        replace_url_with_text,
         text,
         flags=(
             re.IGNORECASE
@@ -171,13 +264,24 @@ def _convert_bbcode(
     # Plain URL
     # -----------------------------
 
+    def replace_plain_url(
+        match,
+    ):
+        url = _fix_url(
+            match.group(1)
+        )
+
+        return (
+            '<a href="'
+            f'{_escape_attribute(url)}'
+            '">'
+            f'{_escape_text(url)}'
+            "</a>"
+        )
+
     text = re.sub(
         r"\[url\](.*?)\[/url\]",
-        (
-            r'<a href="\1">'
-            r"\1"
-            r"</a>"
-        ),
+        replace_plain_url,
         text,
         flags=(
             re.IGNORECASE
@@ -189,9 +293,22 @@ def _convert_bbcode(
     # Images
     # -----------------------------
 
+    def replace_image(
+        match,
+    ):
+        url = _fix_url(
+            match.group(1)
+        )
+
+        return (
+            '<img src="'
+            f'{_escape_attribute(url)}'
+            '"/>'
+        )
+
     text = re.sub(
         r"\[img\](.*?)\[/img\]",
-        r'<img src="\1"/>',
+        replace_image,
         text,
         flags=(
             re.IGNORECASE
@@ -281,6 +398,10 @@ def _replace_linked_images(
             link.get("href")
             or ""
         ).strip()
+
+        href = _fix_url(
+            href
+        )
 
         if not href:
 
@@ -393,7 +514,8 @@ def _cleanup_links(
     soup,
 ):
     """
-    Remove invalid or empty links.
+    Remove invalid or empty links and
+    fix Steam linkfilter URLs.
     """
 
     for link in soup.find_all(
@@ -404,6 +526,10 @@ def _cleanup_links(
             link.get("href")
             or ""
         ).strip()
+
+        href = _fix_url(
+            href
+        )
 
         text = link.get_text(
             strip=True
@@ -417,6 +543,9 @@ def _cleanup_links(
         if not text:
 
             link.decompose()
+            continue
+
+        link["href"] = href
 
     return soup
 
@@ -425,7 +554,8 @@ def _cleanup_images(
     soup,
 ):
     """
-    Remove images without valid src.
+    Remove images without valid src
+    and fix Steam linkfilter URLs.
     """
 
     for image in soup.find_all(
@@ -437,9 +567,16 @@ def _cleanup_images(
             or ""
         ).strip()
 
+        src = _fix_url(
+            src
+        )
+
         if not src:
 
             image.decompose()
+            continue
+
+        image["src"] = src
 
     return soup
 
@@ -461,7 +598,10 @@ def _strip_attributes(
             tag.attrs = {}
 
             if href:
-                tag["href"] = href
+
+                tag["href"] = _fix_url(
+                    href
+                )
 
         elif tag.name == "img":
 
@@ -470,7 +610,26 @@ def _strip_attributes(
             tag.attrs = {}
 
             if src:
-                tag["src"] = src
+
+                tag["src"] = _fix_url(
+                    src
+                )
+
+        elif tag.name == "details":
+
+            is_open = (
+                tag.has_attr("open")
+            )
+
+            tag.attrs = {}
+
+            if is_open:
+
+                tag["open"] = ""
+
+        elif tag.name == "summary":
+
+            tag.attrs = {}
 
         elif tag.name == "tg-button":
 
@@ -482,15 +641,21 @@ def _strip_attributes(
             tag.attrs = {}
 
             if button_type:
+
                 tag["type"] = button_type
 
             if style:
+
                 tag["style"] = style
 
             if url:
-                tag["url"] = url
+
+                tag["url"] = _fix_url(
+                    url
+                )
 
             if data:
+
                 tag["data"] = data
 
         elif tag.name == "tg-button-row":
@@ -500,6 +665,7 @@ def _strip_attributes(
             tag.attrs = {}
 
             if align:
+
                 tag["align"] = align
 
         # Preserve Telegram custom tags.
@@ -650,7 +816,7 @@ def _create_button(
     )
 
     safe_url = _escape_attribute(
-        url
+        _fix_url(url)
     )
 
     return (
@@ -769,6 +935,10 @@ def _build_header(
         or ""
     ).strip()
 
+    preview_url = _fix_url(
+        preview_url
+    )
+
     parts = []
 
     # Preview image always first.
@@ -806,7 +976,7 @@ def _build_description(
 ):
     """
     Put Steam description into
-    tg-collapse.
+    a collapsible details section.
     """
 
     description = item.get(
@@ -823,10 +993,10 @@ def _build_description(
         return ""
 
     return (
-        "<tg-collapse>"
+        "<details>"
         "<summary>Description</summary>"
         f"{content}"
-        "</tg-collapse>"
+        "</details>"
     )
 
 
@@ -835,7 +1005,7 @@ def _build_statistics(
 ):
     """
     Put Workshop statistics into
-    tg-collapse.
+    a collapsible details section.
     """
 
     subscriptions = int(
@@ -863,7 +1033,7 @@ def _build_statistics(
     )
 
     return (
-        "<tg-collapse>"
+        "<details>"
         "<summary>Workshop Statistics</summary>"
 
         "<ul>"
@@ -885,7 +1055,7 @@ def _build_statistics(
 
         "</ul>"
 
-        "</tg-collapse>"
+        "</details>"
     )
 
 
@@ -902,9 +1072,9 @@ def build_workshop_post(
         Title
         Tags
 
-        Description (tg-collapse)
+        Description (details)
 
-        Workshop Statistics (tg-collapse)
+        Workshop Statistics (details)
 
         View Steam Workshop button
 
@@ -1026,9 +1196,5 @@ def build_workshop_post(
         "Workshop HTML built | "
         f"Length={len(final_html)}"
     )
-
-    print("\n========== RICH HTML START ==========")
-    print(final_html)
-    print("========== RICH HTML END ==========\n")
 
     return final_html
