@@ -1,5 +1,6 @@
 import html
 import re
+
 from urllib.parse import (
     parse_qs,
     urlsplit,
@@ -17,6 +18,12 @@ from app.config import (
 from app.steam_workshop import (
     get_workshop_url,
 )
+
+
+GAME_NAMES = {
+    "227300": "Euro Truck Simulator 2",
+    "270880": "American Truck Simulator",
+}
 
 
 SUPPORTED_TAGS = {
@@ -867,6 +874,37 @@ def _create_callback_button_row(
     )
 
 
+def _build_game(
+    item,
+):
+    """
+    Build Workshop game information.
+    """
+
+    app_id = str(
+        item.get(
+            "consumer_app_id",
+            ""
+        )
+        or ""
+    )
+
+    game_name = GAME_NAMES.get(
+        app_id
+    )
+
+    if not game_name:
+
+        return ""
+
+    return (
+        "<p>"
+        "<b>Game:</b> "
+        f"{_escape_text(game_name)}"
+        "</p>"
+    )
+
+
 def _build_tags(
     item,
 ):
@@ -917,6 +955,7 @@ def _build_header(
 
         Preview image
         Title
+        Game
         Tags
     """
 
@@ -954,6 +993,17 @@ def _build_header(
     parts.append(
         f"<h1>{title}</h1>"
     )
+
+    # Game.
+    game_html = _build_game(
+        item
+    )
+
+    if game_html:
+
+        parts.append(
+            game_html
+        )
 
     # Tags.
     tags_html = _build_tags(
@@ -1070,6 +1120,7 @@ def build_workshop_post(
 
         Preview image
         Title
+        Game
         Tags
 
         Description (details)
