@@ -1,6 +1,11 @@
 import html
 import re
 
+from datetime import (
+    datetime,
+    timezone,
+)
+
 from urllib.parse import (
     parse_qs,
     urlsplit,
@@ -1021,6 +1026,188 @@ def _build_header(
     )
 
 
+def _format_file_size(
+    size,
+):
+    """
+    Convert bytes into readable size.
+    """
+
+    try:
+
+        size = int(
+            size
+            or 0
+        )
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+
+        return ""
+
+    if size <= 0:
+
+        return ""
+
+    units = [
+        "B",
+        "KB",
+        "MB",
+        "GB",
+        "TB",
+    ]
+
+    index = 0
+    value = float(
+        size
+    )
+
+    while (
+        value >= 1024
+        and index < len(units) - 1
+    ):
+
+        value /= 1024
+        index += 1
+
+    if index == 0:
+
+        return (
+            f"{int(value)} "
+            f"{units[index]}"
+        )
+
+    return (
+        f"{value:.2f} "
+        f"{units[index]}"
+    )
+
+
+def _format_timestamp(
+    timestamp,
+):
+    """
+    Convert Unix timestamp into
+    readable UTC date and time.
+    """
+
+    try:
+
+        timestamp = int(
+            timestamp
+            or 0
+        )
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+
+        return ""
+
+    if timestamp <= 0:
+
+        return ""
+
+    try:
+
+        date = datetime.fromtimestamp(
+            timestamp,
+            tz=timezone.utc,
+        )
+
+        return date.strftime(
+            "%d %B %Y, %H:%M UTC"
+        )
+
+    except (
+        OSError,
+        OverflowError,
+        ValueError,
+    ):
+
+        return ""
+
+
+def _build_information(
+    item,
+):
+    """
+    Build Workshop information.
+
+    Includes:
+
+        File size
+        Posted date
+        Updated date
+    """
+
+    file_size = _format_file_size(
+        item.get(
+            "file_size",
+            0,
+        )
+    )
+
+    posted = _format_timestamp(
+        item.get(
+            "time_created",
+            0,
+        )
+    )
+
+    updated = _format_timestamp(
+        item.get(
+            "time_updated",
+            0,
+        )
+    )
+
+    parts = []
+
+    if file_size:
+
+        parts.append(
+            "<li>"
+            "<b>📦 File Size:</b> "
+            f"{_escape_text(file_size)}"
+            "</li>"
+        )
+
+    if posted:
+
+        parts.append(
+            "<li>"
+            "<b>📅 Posted:</b> "
+            f"{_escape_text(posted)}"
+            "</li>"
+        )
+
+    if updated:
+
+        parts.append(
+            "<li>"
+            "<b>🔄 Updated:</b> "
+            f"{_escape_text(updated)}"
+            "</li>"
+        )
+
+    if not parts:
+
+        return ""
+
+    return (
+        "<details>"
+        "<summary>Workshop Information</summary>"
+        "<ul>"
+        f"{''.join(parts)}"
+        "</ul>"
+        "</details>"
+    )
+    
+
 def _build_description(
     item,
 ):
@@ -1178,6 +1365,26 @@ def build_workshop_post(
         )
 
     # -----------------------------
+    # Workshop Information
+    # -----------------------------
+
+    information_html = (
+        _build_information(
+            item
+        )
+    )
+
+    if information_html:
+
+        parts.append(
+            "<hr/>"
+        )
+
+        parts.append(
+            information_html
+        )
+
+    # -----------------------------
     # Statistics
     # -----------------------------
 
@@ -1203,7 +1410,7 @@ def build_workshop_post(
 
     parts.append(
         _create_button(
-            "View Steam Workshop",
+            "View in Steam Workshop",
             workshop_url,
             style="primary",
         )
