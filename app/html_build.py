@@ -1323,6 +1323,57 @@ def _build_statistics(
     )
 
 
+def _build_screenshots(
+    item,
+):
+    """
+    Build Workshop screenshots.
+
+    Only show the section when there are
+    more than one additional screenshots.
+    """
+
+    screenshots = item.get(
+        "screenshots",
+        [],
+    )
+
+    if len(screenshots) <= 1:
+
+        return ""
+
+    images = []
+
+    for screenshot in screenshots:
+
+        screenshot = _fix_url(
+            screenshot
+        )
+
+        if not screenshot:
+
+            continue
+
+        images.append(
+            '<img src="'
+            f'{_escape_attribute(screenshot)}'
+            '"/>'
+        )
+
+    if len(images) <= 1:
+
+        return ""
+
+    return (
+        "<details>"
+        "<summary>Screenshots</summary>"
+        "<tg-slideshow>"
+        f"{''.join(images)}"
+        "</tg-slideshow>"
+        "</details>"
+    )
+
+
 def build_workshop_post(
     item,
     preview=False,
@@ -1340,6 +1391,8 @@ def build_workshop_post(
         Description (details)
 
         Workshop Statistics (details)
+
+        Screenshots
 
         View Steam Workshop button
 
@@ -1424,6 +1477,26 @@ def build_workshop_post(
             item
         )
     )
+
+    # -----------------------------
+    # Screenshots
+    # -----------------------------
+
+    screenshots_html = (
+        _build_screenshots(
+            item
+        )
+    )
+
+    if screenshots_html:
+
+        parts.append(
+            "<hr/>"
+        )
+
+        parts.append(
+            screenshots_html
+        )
 
     # -----------------------------
     # Workshop button
