@@ -88,6 +88,12 @@ def get_workshop_item(
 
         return None
 
+    item["screenshots"] = (
+        get_workshop_screenshots(
+            workshop_id
+        )
+    )
+
     return item
 
 
