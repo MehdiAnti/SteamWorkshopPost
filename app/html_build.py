@@ -1027,4 +1027,8 @@ def build_workshop_post(
         f"Length={len(final_html)}"
     )
 
+    print("\n========== RICH HTML START ==========")
+    print(final_html)
+    print("========== RICH HTML END ==========\n")
+
     return final_html
