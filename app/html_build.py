@@ -1026,6 +1026,34 @@ def _build_header(
     )
 
 
+def _get_file_size(
+    item,
+):
+    """
+    Get Workshop file size from
+    available Steam API fields.
+    """
+
+    possible_keys = [
+        "file_size",
+        "filesize",
+        "fileSize",
+        "size",
+    ]
+
+    for key in possible_keys:
+
+        value = item.get(
+            key
+        )
+
+        if value:
+
+            return value
+
+    return 0
+
+
 def _format_file_size(
     size,
 ):
@@ -1145,9 +1173,8 @@ def _build_information(
     """
 
     file_size = _format_file_size(
-        item.get(
-            "file_size",
-            0,
+        _get_file_size(
+            item
         )
     )
 
