@@ -79,6 +79,49 @@ def _extract_workshop_id(
     return None
 
 
+def handle_start(
+    message,
+):
+    """
+    Handle /start command.
+    """
+
+    user_id = (
+        message.get(
+            "from",
+            {},
+        ).get(
+            "id"
+        )
+    )
+
+    chat_id = (
+        message.get(
+            "chat",
+            {},
+        ).get(
+            "id"
+        )
+    )
+
+    if not is_admin(
+        user_id
+    ):
+
+        return
+
+    send_message(
+        chat_id,
+        (
+            "<b>Steam Workshop Post Bot</b>\n\n"
+            "Use:\n"
+            "<code>/preview WORKSHOP_ID</code>\n\n"
+            "Example:\n"
+            "<code>/preview 3776341275</code>"
+        ),
+    )
+
+
 def handle_preview(
     message,
 ):
